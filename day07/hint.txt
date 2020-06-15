@@ -1,0 +1,39 @@
+https://www.reddit.com/r/adventofcode/comments/e7aqcb/2019_day_7_part_2_confused_with_the_question/
+
+[2019 Day 7 (Part 2)] Confused with the question
+Help - SOLVED!
+However, the output from amplifier E is now connected into amplifier A's input. This creates the feedback loop: the signal will be sent through the amplifiers many times.
+
+I've read the question a few times and I am still quite confused with exactly how it is supposed to work.
+
+Does this mean:
+
+Amp A reaches opcode 4, outputs, but has yet to halt (99), pauses execution
+
+Amp B starts, takes in phase as input, then takes in Amp A's output as input, then runs until it reaches opcode 4, outputs, has yet to halt, but pauses execution
+
+and so on...
+
+after Amp E outputs, pauses executions
+
+Amp A restarts execution from where it left off, taking in Amp E's output as input the next time it sees opcode 3?
+
+(or does Amp A start again from the start, taking in Amp E's output as input?)
+
+And... exactly when does the whole feedback loop stop?
+
+UPDATE:
+
+Solved!
+
+All your 5 amps should have their own individual memory array that persists in the current feedback loop, until the final thruster value is generated from Amp E.
+
+The phase is only fed to the Amps exactly once (i.e. when the Amps are first "initialised" or "started"). To quote /u/overdue123 "More concretely, A's first inputs are {phase setting}, 0 (as specified in the problem), {Amp E's first output}, {Amp E's second output} ... "
+
+When an individual Amp meets opcode 4 (output), they output a signal to be taken in by the next amp, and then they PAUSE EXECUTION to be resumed again when the loop goes back to the same particular amp (that is, you have to keep track of the instruction pointer for each individual amp). Another example, when Amp E meets opcode 4, Amp E outputs a signal for Amp A, pauses execution, then Amp A begins from where it stopped previously. The next input Amp A takes in IS NOT the phase (since it has already taken in the phase once), but is Amp E's output signal.
+
+One minor correction from /u/Aneurysm9: an Amp doesn't need to pause execution at opcode 4. If there is a buffer or the next amplifier is able to immediately take the output as input then the first amplifier can proceed. The only place that amplifiers must block is when receiving input via opcode 3. Because opcode 3 results in changes in memory which may change the result of the next instruction, the machine cannot proceed until it has received and processed the input.
+
+The whole feedback loop stops when Amp E meets opcode 99 (halt), this is where you should take the last seen output signal as the thrust value.
+
+Quoting /u/sophiebits "For each permutation of phase values, you initialize the 5 amps and their instruction pointers and their memory arrays from scratch, but then they each maintain state (i.e. their memory arrays) through that permutation of phase values (until the next set of phase values).
