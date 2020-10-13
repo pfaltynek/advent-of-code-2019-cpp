@@ -1,7 +1,6 @@
 #include "./../common/aoc.hpp"
 #include "./../common/coord.hpp"
 #include "./../common/string-utils.hpp"
-#include <unordered_map>
 
 typedef enum OPCODES {
 	OP_ADD = 1,
