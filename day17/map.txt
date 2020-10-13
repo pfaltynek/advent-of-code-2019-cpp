@@ -59,6 +59,8 @@
 
 R8 R8 R4 R4 R8 L6 L2 R4 R4 R8 R8 R8 L6 L2
   A  |   B    |  C  |   B    |  A  |  C
+  A  |  C  |   B    |  C  |  A  |   B  
   
 R6 L8 R8 R6 L8 R8 R4 R6 R6 R4 R4 L8 R6 L10 L10 R4 R6 R6 R4 R4 L8 R6 L10 L10 R4 R6 R6 R4 R4 L8 R6 L10 L10 R6 L8 R8 L8 R6 L10 L10
-   A    |   A    |                 B          |                 B          |                 B          |   A       |  C
+   A    |   A    |                 B          |                 B          |                 B          |   A    |     C
+   A    |   A    |       C      |       B     |       C      |     B       |       C      |     B       |   A    |     B

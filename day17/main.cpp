@@ -19,6 +19,7 @@ typedef enum OPCODES {
 typedef enum DIRECTION { DIRECTION_NORTH = '^', DIRECTION_SOUTH = 'v', DIRECTION_WEST = '<', DIRECTION_EAST = '>' } direction_t;
 
 const std::string all_directions = "^v<>";
+const uint32_t max_function_length = 20;
 
 class AoC2019_day17 : public AoC {
   protected:
@@ -30,9 +31,16 @@ class AoC2019_day17 : public AoC {
 	int32_t get_aoc_year();
 
   private:
-	bool simulate_intcode(std::vector<std::string>& result);
+	bool simulate_intcode(const bool part2, const std::vector<int32_t> part2_input, std::vector<std::string>& result1, int64_t& part2_result);
 	int64_t get_alignment_params_sum();
 	std::string explore_map();
+	bool identify_functions(const std::string input, std::vector<std::string>& funcs);
+	bool identify_rest2functions(const std::vector<std::string> input, std::vector<std::string>& funcs);
+	std::string build_main_function(const std::string input, const std::vector<std::string> funcs);
+	std::string format_function_data(const std::string data);
+	uint32_t find_shortest_string(const std::vector<std::string> rests);
+	bool convert_functions(const std::vector<std::string> funcs, std::vector<int32_t>& result);
+	std::vector<std::string> split_multi(const std::string delimiter, std::vector<std::string> parts);
 	bool set_map(const std::vector<std::string> map);
 	bool is_scaffold(coord_str coord);
 	bool get_int(const uint64_t idx, const int32_t param_mode, int64_t& value);
@@ -41,6 +49,7 @@ class AoC2019_day17 : public AoC {
 	void safe_memory(uint64_t idx);
 
 	std::vector<int64_t> ints_, backup_;
+	uint64_t ints_idx_;
 	int64_t relative_base_;
 	std::vector<std::string> map_;
 	std::vector<coord_str> crosses_;
@@ -50,6 +59,8 @@ class AoC2019_day17 : public AoC {
 
 void AoC2019_day17::reset() {
 	ints_ = backup_;
+	relative_base_ = 0;
+	ints_idx_ = 0;
 }
 
 bool AoC2019_day17::init(const std::vector<std::string> lines) {
@@ -68,6 +79,8 @@ bool AoC2019_day17::init(const std::vector<std::string> lines) {
 	}
 
 	backup_ = ints_;
+	relative_base_ = 0;
+	ints_idx_ = 0;
 
 	return true;
 }
@@ -120,21 +133,29 @@ bool AoC2019_day17::set_int(const uint64_t idx, const int32_t param_mode, const 
 	return true;
 }
 
-bool AoC2019_day17::simulate_intcode(std::vector<std::string>& result) {
-	uint64_t idx = 0;
+bool AoC2019_day17::simulate_intcode(const bool part2, const std::vector<int32_t> part2_input, std::vector<std::string>& result1, int64_t& part2_result) {
+	uint64_t inp_idx = 0;
 	int64_t op1, op2;
 	std::string line = "";
-	bool robot_found = false;
+	bool found = false;
 
-	result.clear();
+	if (!ints_.size()) {
+		return false;
+	}
 
-	relative_base_ = 0;
+	if (part2) {
+		ints_[0] = 2;
+	} else {
+		ints_[0] = 1;
+	}
+
+	result1.clear();
 
 	while (true) {
 		int64_t opcode, param_modes, param_mode[3];
 
-		opcode = ints_[idx] % 100;
-		param_modes = ints_[idx] / 100;
+		opcode = ints_[ints_idx_] % 100;
+		param_modes = ints_[ints_idx_] / 100;
 
 		for (uint64_t i = 0; i < 3; i++) {
 			param_mode[i] = param_modes % 10;
@@ -143,75 +164,93 @@ bool AoC2019_day17::simulate_intcode(std::vector<std::string>& result) {
 
 		switch (static_cast<opcodes_t>(opcode)) {
 			case opcodes_t::OP_ADD:
-				get_int(ints_[idx + 1], param_mode[0], op1);
-				get_int(ints_[idx + 2], param_mode[1], op2);
-				set_int(ints_[idx + 3], param_mode[2], op1 + op2);
-				idx += 4;
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 2], param_mode[1], op2);
+				set_int(ints_[ints_idx_ + 3], param_mode[2], op1 + op2);
+				ints_idx_ += 4;
 				break;
 			case opcodes_t::OP_MUL:
-				get_int(ints_[idx + 1], param_mode[0], op1);
-				get_int(ints_[idx + 2], param_mode[1], op2);
-				set_int(ints_[idx + 3], param_mode[2], op1 * op2);
-				idx += 4;
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 2], param_mode[1], op2);
+				set_int(ints_[ints_idx_ + 3], param_mode[2], op1 * op2);
+				ints_idx_ += 4;
 				break;
 			case opcodes_t::OP_INP:
-				set_int(ints_[idx + 1], param_mode[0], 0);
-				idx += 2;
+				if (part2) {
+					if (inp_idx >= part2_input.size()) {
+						return false;
+					} else {
+						set_int(ints_[ints_idx_ + 1], param_mode[0], part2_input[inp_idx]);
+						inp_idx++;
+					}
+				} else {
+					set_int(ints_[ints_idx_ + 1], param_mode[0], 0);
+				}
+				ints_idx_ += 2;
 				break;
 			case opcodes_t::OP_OUT:
-				get_int(ints_[idx + 1], param_mode[0], op1);
-				if (op1 == 10) {
-					if (line.size()) {
-						result.push_back(line);
+				if (part2) {
+					get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+					if (op1 > 255) {
+						part2_result = op1;
+						found = true;
 					}
-					line.clear();
 				} else {
-					if (all_directions.find_first_of(op1) != std::string::npos) {
-						robot_found = true;
-						robot_ = {static_cast<int32_t>(line.size()), static_cast<int32_t>(result.size())};
-						direction_ = static_cast<direction_t>(op1);
+					get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+					if (op1 == 10) {
+						if (line.size()) {
+							result1.push_back(line);
+						}
+						line.clear();
+					} else {
+						if (all_directions.find_first_of(op1) != std::string::npos) {
+							found = true;
+							robot_ = {static_cast<int32_t>(line.size()), static_cast<int32_t>(result1.size())};
+							direction_ = static_cast<direction_t>(op1);
+						}
+						line += op1;
 					}
-					line += op1;
 				}
-				idx += 2;
+				ints_idx_ += 2;
 				break;
 			case opcodes_t::OP_JNZ:
-				get_int(ints_[idx + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
 				if (op1) {
-					get_int(ints_[idx + 2], param_mode[1], op2);
-					idx = op2;
+					get_int(ints_[ints_idx_ + 2], param_mode[1], op2);
+					ints_idx_ = op2;
 				} else {
-					idx += 3;
+					ints_idx_ += 3;
 				}
 				break;
 			case opcodes_t::OP_JZ:
-				get_int(ints_[idx + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
 				if (!op1) {
-					get_int(ints_[idx + 2], param_mode[1], op2);
-					idx = op2;
+					get_int(ints_[ints_idx_ + 2], param_mode[1], op2);
+					ints_idx_ = op2;
 				} else {
-					idx += 3;
+					ints_idx_ += 3;
 				}
 				break;
 			case opcodes_t::OP_LES:
-				get_int(ints_[idx + 1], param_mode[0], op1);
-				get_int(ints_[idx + 2], param_mode[1], op2);
-				set_int(ints_[idx + 3], param_mode[2], op1 < op2 ? 1 : 0);
-				idx += 4;
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 2], param_mode[1], op2);
+				set_int(ints_[ints_idx_ + 3], param_mode[2], op1 < op2 ? 1 : 0);
+				ints_idx_ += 4;
 				break;
 			case opcodes_t::OP_EQL:
-				get_int(ints_[idx + 1], param_mode[0], op1);
-				get_int(ints_[idx + 2], param_mode[1], op2);
-				set_int(ints_[idx + 3], param_mode[2], op1 == op2 ? 1 : 0);
-				idx += 4;
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 2], param_mode[1], op2);
+				set_int(ints_[ints_idx_ + 3], param_mode[2], op1 == op2 ? 1 : 0);
+				ints_idx_ += 4;
 				break;
 			case opcodes_t::OP_SET_REL_BASE:
-				get_int(ints_[idx + 1], param_mode[0], op1);
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
 				relative_base_ += op1;
-				idx += 2;
+				ints_idx_ += 2;
 				break;
 			case opcodes_t::OP_FIN:
-				return robot_found;
+				ints_idx_++;
+				return found;
 			default:
 				return false;
 		}
@@ -254,7 +293,7 @@ bool AoC2019_day17::set_map(const std::vector<std::string> map) {
 	}
 
 	for (uint32_t i = 0; i < map.size(); i++) {
-		//std::cout << map[i].c_str() << std::endl;
+		// std::cout << map[i].c_str() << std::endl;
 
 		pos = map[i].find_first_of(all_directions);
 
@@ -345,7 +384,7 @@ std::string AoC2019_day17::explore_map() {
 			position = right;
 		} else {
 			if (steps) {
-				result.push_back(rotate* steps);
+				result.push_back(rotate * steps);
 			}
 			break;
 		}
@@ -361,7 +400,165 @@ std::string AoC2019_day17::explore_map() {
 		steps++;
 	}
 
+	// std::cout << format_function_data(result) << std::endl;
+
 	return result;
+}
+
+bool AoC2019_day17::identify_functions(const std::string input, std::vector<std::string>& funcs) {
+	std::string tmp, tmp2;
+	std::vector<std::string> rest;
+
+	funcs = {"", "", "", ""};
+
+	for (size_t i = 0; i < input.size() / 2; i++) {
+		for (size_t l = 2; l < input.size() - i; l++) {
+			tmp = input.substr(i, l);
+			tmp2 = format_function_data(tmp);
+
+			if (tmp2.size() > max_function_length) {
+				continue;
+			}
+
+			funcs[1] = tmp2;
+			rest = split(input, tmp);
+
+			if (rest.size() == 2) { // speed hack from data analysis
+				if (identify_rest2functions(rest, funcs)) {
+					funcs[0] = build_main_function(input, funcs);
+
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool AoC2019_day17::identify_rest2functions(const std::vector<std::string> input, std::vector<std::string>& funcs) {
+	std::string tmp, tmp2;
+
+	// find the shortest rest part
+	uint32_t idx = find_shortest_string(input);
+	tmp = input[idx];
+	tmp2 = format_function_data(tmp);
+
+	if (tmp2.size() > max_function_length) {
+		return false;
+	}
+
+	funcs[2] = tmp2;
+
+	// remove it from rest
+	std::vector<std::string> rests = split_multi(tmp, input);
+
+	if (rests.size() >= 2) { // speed hack from data analysis
+		for (size_t i = 1; i < rests.size(); i++) {
+			if (rests[0] != rests[i]) {
+				return false;
+			}
+		}
+		tmp = rests[0];
+		tmp2 = format_function_data(tmp);
+
+		if (tmp2.size() > max_function_length) {
+			return false;
+		}
+
+		funcs[3] = tmp2;
+
+		return true;
+	}
+
+	return false;
+}
+
+std::string AoC2019_day17::build_main_function(const std::string input, const std::vector<std::string> funcs) {
+	std::string result = {}, tmp = format_function_data(input);
+
+	while (tmp.size()) {
+		for (uint8_t i = 1; i < funcs.size(); i++) {
+			if (funcs[i].size()) {
+				if (tmp.rfind(funcs[i], 0) == 0) {
+					size_t pos = funcs[i].size() + 1;
+					if (pos > tmp.size()) {
+						tmp.clear();
+					} else {
+						tmp = tmp.substr(pos, tmp.size());
+					}
+					if (result.size()) {
+						result.append(",");
+					}
+					result += ('A' + i - 1);
+					break;
+				}
+			}
+		}
+	}
+
+	return result;
+}
+
+std::vector<std::string> AoC2019_day17::split_multi(const std::string delimiter, std::vector<std::string> parts) {
+	std::vector<std::string> result = {}, tmp;
+
+	for (uint32_t i = 0; i < parts.size(); i++) {
+		tmp = split(parts[i], delimiter);
+		result.insert(result.end(), tmp.begin(), tmp.end());
+	}
+
+	return result;
+}
+
+uint32_t AoC2019_day17::find_shortest_string(const std::vector<std::string> rests) {
+	uint32_t len = rests[0].size();
+	uint32_t idx = 0;
+
+	for (size_t j = 1; j < rests.size(); j++) {
+		if (rests[j].size() < len) {
+			len = rests[j].size();
+			idx = j;
+		}
+	}
+
+	return idx;
+}
+
+std::string AoC2019_day17::format_function_data(const std::string data) {
+	std::string result = "";
+
+	for (uint32_t i = 0; i < data.size(); i++) {
+		if (result.size()) {
+			result.append(",");
+		}
+		if (data[i] < 0) {
+			result.append("L,");
+		} else {
+			result.append("R,");
+		}
+		result.append(std::to_string(abs(data[i])));
+	}
+	return result;
+}
+
+bool AoC2019_day17::convert_functions(const std::vector<std::string> funcs, std::vector<int32_t>& result) {
+	if (funcs.size() != 4) {
+		return false;
+	}
+
+	result.clear();
+
+	for (uint8_t i = 0; i < 4; ++i) {
+		for (uint8_t j = 0; j < funcs[i].size(); ++j) {
+			result.push_back(funcs[i][j]);
+		}
+		result.push_back('\n');
+	}
+
+	result.push_back('n');
+	result.push_back('\n');
+
+	return true;
 }
 
 int32_t AoC2019_day17::get_aoc_day() {
@@ -375,6 +572,7 @@ int32_t AoC2019_day17::get_aoc_year() {
 void AoC2019_day17::tests() {
 	int64_t result = 0;
 	std::string data;
+	std::vector<std::string> funcs;
 
 	if (set_map({"..#..........", "..#..........", "#######...###", "#.#...#...#.#", "#############", "..#...#...#..", "..#####...^.."})) {
 		result = get_alignment_params_sum(); // 76
@@ -384,14 +582,17 @@ void AoC2019_day17::tests() {
 				 "......#.#...#.#", "......#########", "........#...#..", "....#########..", "....#...#......", "....#...#......", "....#...#......",
 				 "....#####......"})) {
 		data = explore_map();
+		if (identify_functions(data, funcs)) {
+			// = {"R,8,R,8", "R,8,L,6,L,2", "R,4,R,4", "A,C,B,C,A,B"}
+		}
 	}
 }
 
 bool AoC2019_day17::part1() {
-	int64_t result = 0;
+	int64_t result = 0, tmp;
 	std::vector<std::string> map;
 
-	if (simulate_intcode(map)) {
+	if (simulate_intcode(false, {}, map, tmp)) {
 		if (set_map(map)) {
 			result = get_alignment_params_sum();
 			result1_ = std::to_string(result);
@@ -405,10 +606,21 @@ bool AoC2019_day17::part1() {
 bool AoC2019_day17::part2() {
 	int64_t result = 0;
 	std::string data;
+	std::vector<std::string> funcs;
+	std::vector<int32_t> fcs;
 
 	data = explore_map();
 
-	return true;
+	if (identify_functions(data, funcs)) {
+		if (convert_functions(funcs, fcs)) {
+			if (simulate_intcode(true, fcs, funcs, result)) {
+				result2_ = std::to_string(result);
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 int main(void) {
