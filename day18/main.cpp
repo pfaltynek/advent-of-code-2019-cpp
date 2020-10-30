@@ -11,11 +11,13 @@ struct edge {
 	char from, to;
 	uint64_t steps;
 	uint32_t keys_mask;
+	uint32_t keys_meet;
 };
 struct location_info {
 	coord_str pos;
 	uint64_t steps;
 	uint32_t keys_mask;
+	uint32_t keys_meet;
 };
 
 struct maze_state {
@@ -46,6 +48,7 @@ class AoC2019_day18 : public AoC {
 	bool find_shortest_path_to_key(const coord_str start_pos, edge& e);
 	bool collect_all_keys_shortest_way(std::string& path, uint64_t& steps);
 	void analyze_maze();
+	uint32_t get_key(const char key);
 	void add_key(const char key, uint32_t& keys);
 
 	std::map<coord_str, char> map_;
@@ -107,9 +110,13 @@ bool AoC2019_day18::init(const std::vector<std::string> lines) {
 }
 
 void AoC2019_day18::add_key(const char key, uint32_t& keys) {
+	keys |= get_key(key);
+}
+
+uint32_t AoC2019_day18::get_key(const char key) {
 	int shift = tolower(key) - 'a';
 
-	keys |= (0x00000001 << shift);
+	return (0x00000001 << shift);
 }
 
 int32_t AoC2019_day18::get_aoc_day() {
@@ -191,7 +198,7 @@ bool AoC2019_day18::collect_all_keys_shortest_way(std::string& path, uint64_t& s
 	std::map<char, std::map<uint32_t, maze_state>> q1 = {}, q2 = {};
 	std::map<uint32_t, maze_state> m;
 	char from, to;
-	uint32_t key_bit, keys_having, keys_having_new, keys_required;
+	uint32_t key_bit, keys_having, keys_having_new, keys_required, keys_on_the_way;
 
 	q1['@'][0] = {0, ""};
 
@@ -225,14 +232,17 @@ bool AoC2019_day18::collect_all_keys_shortest_way(std::string& path, uint64_t& s
 						continue;
 					}
 
-					key_bit = 0;
-					add_key(to, key_bit);
+					key_bit = get_key(to);
 					if (key_bit & keys_having) {
 						continue;
 					}
 
 					keys_required = edges_[from][to].keys_mask;
 					if ((keys_required & keys_having) != keys_required) {
+						continue;
+					}
+					keys_on_the_way = edges_[from][to].keys_meet;
+					if ((keys_having & keys_on_the_way) != keys_on_the_way) {
 						continue;
 					}
 					next = state;
@@ -264,16 +274,17 @@ bool AoC2019_day18::collect_all_keys_shortest_way(std::string& path, uint64_t& s
 bool AoC2019_day18::find_shortest_path_to_key(const coord_str start_pos, edge& e) {
 	std::queue<location_info> q;
 	std::set<coord_str> history = {};
-	uint32_t keys;
+	uint32_t keys, meet;
 	coord_str pos;
 	uint64_t step_cnt;
 
-	q.push({start_pos, 0, 0});
+	q.push({start_pos, 0, 0, 0});
 
 	while (q.size()) {
 		pos = q.front().pos;
 		step_cnt = q.front().steps;
 		keys = q.front().keys_mask;
+		meet = q.front().keys_meet;
 		q.pop();
 
 		if (history.count(pos)) {
@@ -286,6 +297,7 @@ bool AoC2019_day18::find_shortest_path_to_key(const coord_str start_pos, edge& e
 
 		if (pos == keys_map_[e.to]) {
 			e.keys_mask = keys;
+			e.keys_meet = meet;
 			e.steps = step_cnt;
 			return true;
 		}
@@ -294,11 +306,15 @@ bool AoC2019_day18::find_shortest_path_to_key(const coord_str start_pos, edge& e
 			add_key(map_[pos], keys);
 		}
 
+		if (islower(map_[pos]) && (map_[pos] != e.to) && (map_[pos] != e.from)) {
+			add_key(map_[pos], meet);
+		}
+
 		step_cnt++;
-		q.push({pos + coord_step_north, step_cnt, keys});
-		q.push({pos + coord_step_south, step_cnt, keys});
-		q.push({pos + coord_step_west, step_cnt, keys});
-		q.push({pos + coord_step_east, step_cnt, keys});
+		q.push({pos + coord_step_north, step_cnt, keys, meet});
+		q.push({pos + coord_step_south, step_cnt, keys, meet});
+		q.push({pos + coord_step_west, step_cnt, keys, meet});
+		q.push({pos + coord_step_east, step_cnt, keys, meet});
 		history.insert(pos);
 	}
 
