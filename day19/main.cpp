@@ -30,13 +30,19 @@ class AoC2019_day19 : public AoC {
 	int32_t get_aoc_year();
 
   private:
-	bool simulate_intcode(const bool part2, const std::vector<uint32_t> part1_input, int64_t& part1_result, int64_t& part2_result);
+	bool simulate_intcode(const bool part2, const std::pair<uint32_t, uint32_t> part1_input, bool& part1_result, int64_t& part2_result);
 	bool get_int(const uint64_t idx, const int32_t param_mode, int64_t& value);
 	bool set_int(const uint64_t idx, const int32_t param_mode, const int64_t value);
 	void reset();
 	void safe_memory(uint64_t idx);
 
+	bool get_beam_state(const std::pair<uint32_t, uint32_t> position);
+	void add_beam_state_line();
+	uint64_t get_closest_square_position(const uint32_t square_edge_len);
+	uint64_t get_beam_affected_count(const std::pair<uint32_t, uint32_t> area_size);
+
 	std::vector<int64_t> ints_, backup_;
+	std::vector<std::pair<uint32_t, uint32_t>> beam_;
 	uint64_t ints_idx_;
 	int64_t relative_base_;
 };
@@ -117,17 +123,13 @@ bool AoC2019_day19::set_int(const uint64_t idx, const int32_t param_mode, const 
 	return true;
 }
 
-bool AoC2019_day19::simulate_intcode(const bool part2, const std::vector<uint32_t> part1_input, int64_t& part1_result, int64_t& part2_result) {
-	uint64_t inp_idx = 0;
+bool AoC2019_day19::simulate_intcode(const bool part2, const std::pair<uint32_t, uint32_t> part1_input, bool& part1_result, int64_t& part2_result) {
+	bool input_first = true;
 	int64_t op1, op2;
 	std::string line = "";
 	bool found = false;
 
 	if (!ints_.size()) {
-		return false;
-	}
-
-	if (part1_input.size() != 2) {
 		return false;
 	}
 
@@ -161,11 +163,8 @@ bool AoC2019_day19::simulate_intcode(const bool part2, const std::vector<uint32_
 				if (part2) {
 
 				} else {
-					set_int(ints_[ints_idx_ + 1], param_mode[0], part1_input[inp_idx]);
-					inp_idx++;
-					if (inp_idx >= part1_input.size()) {
-						inp_idx = 0;
-					}
+					set_int(ints_[ints_idx_ + 1], param_mode[0], input_first ? part1_input.first : part1_input.second);
+					input_first = !input_first;
 				}
 				ints_idx_ += 2;
 				break;
@@ -178,6 +177,7 @@ bool AoC2019_day19::simulate_intcode(const bool part2, const std::vector<uint32_
 				} else {
 					part1_result = op1;
 				}
+				found = true;
 				ints_idx_ += 2;
 				break;
 			case opcodes_t::OP_JNZ:
@@ -226,6 +226,129 @@ bool AoC2019_day19::simulate_intcode(const bool part2, const std::vector<uint32_
 	return false;
 }
 
+bool AoC2019_day19::get_beam_state(const std::pair<uint32_t, uint32_t> position) {
+	bool result1;
+	int64_t result2;
+
+	reset();
+	simulate_intcode(false, position, result1, result2);
+
+	return result1;
+}
+
+void AoC2019_day19::add_beam_state_line() {
+	uint32_t left, right, y;
+	bool ldone = false;
+
+	y = beam_.size();
+	if (!y) {
+		left = right = 0;
+	} else {
+		left = beam_[y - 1].first;
+		right = left + beam_[y - 1].second - 1;
+	}
+
+	if (!left) {
+		if (get_beam_state({left, y})) {
+			ldone = true;
+		}
+	} else {
+		left--;
+	}
+	if (!ldone) {
+		while (!get_beam_state({left, y})) {
+			left++;
+		}
+	}
+
+	while (get_beam_state({right, y})) {
+		right++;
+	}
+	beam_.push_back({left, right - left});
+}
+
+uint64_t AoC2019_day19::get_closest_square_position(const uint32_t square_edge_size) {
+	uint64_t result = 0;
+	uint32_t first, left;
+
+	bool found = false;
+
+	while (beam_[beam_.size() - 1].second < square_edge_size) {
+		add_beam_state_line();
+	}
+
+	first = beam_.size() - 1;
+	left = beam_[first].first;
+
+	while (beam_[beam_.size() - 1].second < 3 * square_edge_size) {
+		add_beam_state_line();
+		// std::cout << beam_[beam_.size() - 1].first << " - " << beam_[beam_.size() - 1].second << std::endl;
+	}
+
+/*
+	while (first + square_edge_size < beam_.size()) {
+		add_beam_state_line();
+	}
+*/
+	while (!found) {
+		if (beam_[first].first <= left) {
+			if (beam_[first].first + beam_[first].second >= left + square_edge_size) {
+				if (beam_[first + square_edge_size - 1].first <= left) {
+					if (beam_[first + square_edge_size - 1].first + beam_[first + square_edge_size - 1].second >= left + square_edge_size) {
+						result = left * 10000 + first;
+						found = true;
+					} else {
+						first++;
+					}
+				} else {
+					left++;
+				}
+			} else {
+				first++;
+			}
+		} else {
+			left++;
+		}
+	}
+
+	return result;
+}
+
+uint64_t AoC2019_day19::get_beam_affected_count(const std::pair<uint32_t, uint32_t> area_size) {
+	uint64_t result = 0;
+	std::string line;
+	uint32_t left, right;
+
+	for (uint32_t i = 0; i < area_size.first; i++) {
+		line.clear();
+		right = 0;
+		left = UINT32_MAX;
+
+		for (uint32_t j = 0; j < area_size.second; j++) {
+			if (get_beam_state({j, i})) {
+				line.append("*");
+				if (j < left) {
+					left = j;
+				}
+				if (j > right) {
+					right = j;
+				}
+				result++;
+			} else {
+				line.append(".");
+			}
+		}
+
+		if (left > right) {
+			beam_.push_back({0, 0});
+		} else {
+			beam_.push_back({left, right + 1 - left});
+		}
+	}
+
+	return result;
+}
+
 int32_t AoC2019_day19::get_aoc_day() {
 	return 17;
 }
@@ -240,23 +363,19 @@ void AoC2019_day19::tests() {
 bool AoC2019_day19::part1() {
 	int64_t result = 0;
 
-	if (1) {
-		result1_ = std::to_string(result);
-		return true;
-	}
+	result = get_beam_affected_count({50, 50});
+	result1_ = std::to_string(result);
 
-	return false;
+	return true;
 }
 
 bool AoC2019_day19::part2() {
-	int64_t result = 0;
+	uint64_t result = 0;
 
-	if (1) {
-		result2_ = std::to_string(result);
-		return true;
-	}
+	result = get_closest_square_position(100);
+	result2_ = std::to_string(result);
 
-	return false;
+	return true;
 }
 
 int main(void) {

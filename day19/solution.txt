@@ -1,2 +1,2 @@
-part1:	
-part2:	
+part1:	110
+part2:	17302065
