@@ -19,9 +19,10 @@ class AoC2019_day20 : public AoC {
   private:
 	std::map<coord_str, bool> paths_;
 	std::map<coord_str, coord_str> portals_;
-	coord_str start_, end_;
+	coord_str start_, end_, min_, max_;
 
-	uint64_t find_shortest_path();
+	uint64_t find_shortest_path(const bool part2 = false);
+	bool is_portal_outer(const coord_str portal) const;
 };
 
 bool AoC2019_day20::init(const std::vector<std::string> lines) {
@@ -35,6 +36,8 @@ bool AoC2019_day20::init(const std::vector<std::string> lines) {
 	chars.clear();
 	paths_.clear();
 	portals_.clear();
+	max_ = {INT32_MIN, INT32_MIN};
+	min_ = {INT32_MAX, INT32_MAX};
 
 	for (uint64_t i = 0; i < lines.size(); i++) {
 		for (size_t j = 0; j < lines[i].size(); j++) {
@@ -44,6 +47,18 @@ bool AoC2019_day20::init(const std::vector<std::string> lines) {
 					break;
 				case '.':
 					paths_[{static_cast<int32_t>(j), static_cast<int32_t>(i)}] = false;
+					if (static_cast<int32_t>(i) > max_.y) {
+						max_.y = i;
+					}
+					if (static_cast<int32_t>(j) > max_.x) {
+						max_.x = j;
+					}
+					if (static_cast<int32_t>(i) < min_.y) {
+						min_.y = i;
+					}
+					if (static_cast<int32_t>(j) < min_.x) {
+						min_.x = j;
+					}
 					break;
 				default:
 					if (isupper(lines[i][j])) {
@@ -196,46 +211,87 @@ bool AoC2019_day20::init(const std::vector<std::string> lines) {
 	return true;
 }
 
-uint64_t AoC2019_day20::find_shortest_path() {
-	uint64_t steps;
+bool AoC2019_day20::is_portal_outer(const coord_str portal) const {
+	return (portal.x > max_.x) || (portal.y > max_.y) || (portal.x < min_.x) || (portal.y < min_.y);
+}
+
+uint64_t AoC2019_day20::find_shortest_path(const bool part2) {
+	uint32_t steps;
+	int32_t level;
 	coord_str current, next;
-	std::queue<std::pair<coord_str, uint64_t>> q;
-	std::set<coord_str> history;
+	bool portal_is_outer;
+	coord_3d_str hist_item;
+	std::queue<coord_4d_str> q;
+	std::set<coord_3d_str> history;
 	std::vector<coord_str> neighbors = {coord_step_north, coord_step_south, coord_step_west, coord_step_east};
 
 	history.clear();
 	q = {};
-	q.push({start_, 0});
+	q.push({start_.x, start_.y, 0, 0});
 
 	while (q.size()) {
-		auto pos = q.front();
+		current = {q.front().x, q.front().y};
+		steps = q.front().z;
+		level = q.front().w;
 		q.pop();
-		current = pos.first;
-		steps = pos.second;
 
 		if (!paths_.count(current)) {
 			continue;
 		}
 
 		if (current == end_) {
-			return steps;
+			if (part2) {
+				if (level == 0) {
+					return steps;
+				}
+			} else {
+				return steps;
+			}
 		}
 
-		if (history.count(current)) {
+		hist_item = {current.x, current.y, level};
+		if (history.count(hist_item)) {
 			continue;
 		}
 
-		history.emplace(current);
+		history.emplace(hist_item);
 
 		if (paths_[current]) {
-			current = portals_[current];
-			history.emplace(current);
+			bool portal_active = true;
+
+			if (part2) {
+
+				portal_is_outer = is_portal_outer(current);
+
+				if (level == 0) {
+					if (portal_is_outer) {
+						portal_active = false;
+					}
+				}
+			}
+
+			if (portal_active) {
+				current = portals_[current];
+				hist_item.x = current.x;
+				hist_item.y = current.y;
+				
+				if (portal_is_outer) {
+					level--;
+				} else {
+					level++;
+				}
+
+				hist_item.z = level;
+				history.emplace(hist_item);
+			} else {
+				continue;
+			}
 		}
 
 		for (uint8_t i = 0; i < neighbors.size(); i++) {
 			next = current + neighbors[i];
 			if (paths_.count(next)) {
-				q.push({next, steps + 1});
+				q.push({next.x, next.y, static_cast<int32_t>(steps + 1), level});
 			}
 		}
 	}
@@ -258,7 +314,8 @@ void AoC2019_day20::tests() {
 			  "  #######.#######.#  ", "  #######.#######.#  ", "  #####  B    ###.#  ", "BC...##  C    ###.#  ", "  ##.##       ###.#  ",
 			  "  ##...DE  F  ###.#  ", "  #####    G  ###.#  ", "  #########.#####.#  ", "DE..#######...###.#  ", "  #.#########.###.#  ",
 			  "FG..#########.....#  ", "  ###########.#####  ", "             Z       ", "             Z       "})) {
-		result = find_shortest_path();
+		result = find_shortest_path();	   // 23
+		result = find_shortest_path(true); // 26
 	}
 
 	if (init({"                   A               ", "                   A               ", "  #################.#############  ",
@@ -274,7 +331,28 @@ void AoC2019_day20::tests() {
 			  "  #.#####.###.###.#.#.#########.#  ", "  #...#.#.....#...#.#.#.#.....#.#  ", "  #.###.#####.###.###.#.#.#######  ",
 			  "  #.#.........#...#.............#  ", "  #########.###.###.#############  ", "           B   J   C               ",
 			  "           U   P   P               "})) {
-		result = find_shortest_path();
+		result = find_shortest_path(); // 58
+		if (init({"             Z L X W       C                 ", "             Z P Q B       K                 ",
+				  "  ###########.#.#.#.#######.###############  ", "  #...#.......#.#.......#.#.......#.#.#...#  ",
+				  "  ###.#.#.#.#.#.#.#.###.#.#.#######.#.#.###  ", "  #.#...#.#.#...#.#.#...#...#...#.#.......#  ",
+				  "  #.###.#######.###.###.#.###.###.#.#######  ", "  #...#.......#.#...#...#.............#...#  ",
+				  "  #.#########.#######.#.#######.#######.###  ", "  #...#.#    F       R I       Z    #.#.#.#  ",
+				  "  #.###.#    D       E C       H    #.#.#.#  ", "  #.#...#                           #...#.#  ",
+				  "  #.###.#                           #.###.#  ", "  #.#....OA                       WB..#.#..ZH",
+				  "  #.###.#                           #.#.#.#  ", "CJ......#                           #.....#  ",
+				  "  #######                           #######  ", "  #.#....CK                         #......IC",
+				  "  #.###.#                           #.###.#  ", "  #.....#                           #...#.#  ",
+				  "  ###.###                           #.#.#.#  ", "XF....#.#                         RF..#.#.#  ",
+				  "  #####.#                           #######  ", "  #......CJ                       NM..#...#  ",
+				  "  ###.#.#                           #.###.#  ", "RE....#.#                           #......RF",
+				  "  ###.###        X   X       L      #.#.#.#  ", "  #.....#        F   Q       P      #.#.#.#  ",
+				  "  ###.###########.###.#######.#########.###  ", "  #.....#...#.....#.......#...#.....#.#...#  ",
+				  "  #####.#.###.#######.#######.###.###.#.#.#  ", "  #.......#.......#.#.#.#.#...#...#...#.#.#  ",
+				  "  #####.###.#####.#.#.#.#.###.###.#.###.###  ", "  #.......#.....#.#...#...............#...#  ",
+				  "  #############.#.#.###.###################  ", "               A O F   N                     ",
+				  "               A A D   M                     "})) {
+			result = find_shortest_path(true); // 396
+		}
 	}
 }
 
@@ -287,7 +365,7 @@ bool AoC2019_day20::part1() {
 
 bool AoC2019_day20::part2() {
 
-	result2_ = std::to_string(0);
+	result2_ = std::to_string(find_shortest_path(true));
 
 	return true;
 }
