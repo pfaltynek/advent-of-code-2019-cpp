@@ -350,7 +350,7 @@ uint64_t AoC2019_day19::get_beam_affected_count(const std::pair<uint32_t, uint32
 }
 
 int32_t AoC2019_day19::get_aoc_day() {
-	return 17;
+	return 19;
 }
 
 int32_t AoC2019_day19::get_aoc_year() {

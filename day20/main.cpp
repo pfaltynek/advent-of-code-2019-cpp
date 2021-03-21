@@ -300,7 +300,7 @@ uint64_t AoC2019_day20::find_shortest_path(const bool part2) {
 }
 
 int32_t AoC2019_day20::get_aoc_day() {
-	return 17;
+	return 20;
 }
 
 int32_t AoC2019_day20::get_aoc_year() {
