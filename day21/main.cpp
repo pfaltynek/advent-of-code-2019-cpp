@@ -1,7 +1,8 @@
 #include "./../common/aoc.hpp"
 #include "./../common/string-utils.hpp"
 
-const std::string C_INSTRUCTIONS = "NOT B T\nNOT A J\nOR T J\nNOT C T\nOR T J\nAND D J\nWALK\n";
+const std::string C_INSTRUCTIONS1 = "NOT A T\nNOT B J\nOR T J\nNOT C T\nOR T J\nAND D J\nWALK\n";
+const std::string C_INSTRUCTIONS2 = "NOT B J\nNOT C T\nOR T J\nAND D J\nAND H J\nNOT A T\nOR T J\nRUN\n";
 
 typedef enum OPCODES {
 	OP_ADD = 1,
@@ -26,7 +27,7 @@ class AoC2019_day21 : public AoC {
 	int32_t get_aoc_year();
 
   private:
-	bool simulate_intcode(const bool part2, const std::string& part1_input, const std::vector<int32_t> part2_input, int64_t& result);
+	bool simulate_intcode(const std::string& input, int64_t& result);
 	bool get_int(const uint64_t idx, const int32_t param_mode, int64_t& value);
 	bool set_int(const uint64_t idx, const int32_t param_mode, const int64_t value);
 	void reset();
@@ -113,13 +114,13 @@ bool AoC2019_day21::set_int(const uint64_t idx, const int32_t param_mode, const 
 	return true;
 }
 
-bool AoC2019_day21::simulate_intcode(const bool part2, const std::string& part1_input, const std::vector<int32_t> part2_input, int64_t& result) {
+bool AoC2019_day21::simulate_intcode(const std::string& input, int64_t& result) {
 	uint64_t inp_idx = 0;
 	int64_t op1, op2;
-	std::string line = "", movie = "";
 	bool found = false;
 
 	result = 0;
+	reset();
 
 	if (!ints_.size()) {
 		return false;
@@ -150,39 +151,21 @@ bool AoC2019_day21::simulate_intcode(const bool part2, const std::string& part1_
 				ints_idx_ += 4;
 				break;
 			case opcodes_t::OP_INP:
-				if (part2) {
-					if (inp_idx >= part2_input.size()) {
-						return false;
-					} else {
-						set_int(ints_[ints_idx_ + 1], param_mode[0], part2_input[inp_idx]);
-						inp_idx++;
-					}
+				if (inp_idx >= input.size()) {
+					return false;
 				} else {
-					if (inp_idx >= part1_input.size()) {
-						return false;
-					} else {
-						set_int(ints_[ints_idx_ + 1], param_mode[0], part1_input[inp_idx]);
-						inp_idx++;
-					}
+					set_int(ints_[ints_idx_ + 1], param_mode[0], input[inp_idx]);
+					inp_idx++;
 				}
 				ints_idx_ += 2;
 				break;
 			case opcodes_t::OP_OUT:
-				if (part2) {
-					get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
-					if (op1 > 255) {
-						result = op1;
-						found = true;
-					}
+				get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
+				if (op1 > 127) {
+					result = op1;
+					found = true;
 				} else {
-					get_int(ints_[ints_idx_ + 1], param_mode[0], op1);
-					if (op1 > 127) {
-						result = op1;
-						found = true;
-					} else {
-						movie += static_cast<char>(op1);
-						std::cout << static_cast<char>(op1);
-					}
+					//std::cout << static_cast<char>(op1);
 				}
 				ints_idx_ += 2;
 				break;
@@ -239,7 +222,7 @@ void AoC2019_day21::tests() {
 bool AoC2019_day21::part1() {
 	int64_t result;
 
-	if (simulate_intcode(false, C_INSTRUCTIONS, {}, result)) {
+	if (simulate_intcode(C_INSTRUCTIONS1, result)) {
 		result1_ = std::to_string(result);
 
 		return true;
@@ -249,10 +232,15 @@ bool AoC2019_day21::part1() {
 }
 
 bool AoC2019_day21::part2() {
+	int64_t result;
 
-	result2_ = std::to_string(0);
+	if (simulate_intcode(C_INSTRUCTIONS2, result)) {
+		result2_ = std::to_string(result);
 
-	return true;
+		return true;
+	} else {
+		return false;
+	}
 }
 
 int32_t AoC2019_day21::get_aoc_day() {
