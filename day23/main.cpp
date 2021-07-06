@@ -15,7 +15,7 @@ class AoC2019_day23 : public AoC {
   private:
 	const size_t C_NETWORK_SIZE = 50;
 	std::vector<int64_t> ints_;
-	int64_t run_network();
+	int64_t run_network(const bool part2);
 };
 
 bool AoC2019_day23::init(const std::vector<std::string> lines) {
@@ -60,10 +60,11 @@ void AoC2019_day23::tests() {
 	}
 }
 
-int64_t AoC2019_day23::run_network() {
+int64_t AoC2019_day23::run_network(const bool part2) {
 	std::map<int64_t, int_code> network;
-	bool finished = false;
-	int64_t result = 0, address, x, y;
+	bool finished = false, idle, handle_nat = false;
+	int64_t result = 0, address, x, y, nat_x = -1, nat_y = -1, nat_y_prev = -1;
+	int8_t idle_cnt = 0;
 
 	for (size_t i = 0; i < C_NETWORK_SIZE; i++) {
 		int_code ic(i, ints_);
@@ -71,18 +72,46 @@ int64_t AoC2019_day23::run_network() {
 	}
 
 	while (!finished) {
+		idle = true;
 		for (size_t i = 0; i < C_NETWORK_SIZE; i++) {
 			network[i].simulate_intcode();
+			if (!network[i].get_idle()) {
+				idle = false;
+			}
+
 			if (network[i].get_outgoing_packet(address, x, y)) {
 				if (address == 255) {
-					result = y;
-					finished = true;
-					break;
+					if (part2) {
+						nat_y = y;
+						nat_x = x;
+						handle_nat = true;
+					} else {
+						result = y;
+						finished = true;
+						break;
+					}
 				} else if ((address >= 0) && (static_cast<size_t>(address) < C_NETWORK_SIZE)) {
 					network[address].set_incoming_packet(x, y);
 				} else {
 					int z = 13;
 				}
+			}
+		}
+
+		if (part2 && handle_nat) {
+			if (idle) {
+				if (++idle_cnt >= 50) {
+					network[0].set_incoming_packet(nat_x, nat_y);
+					idle_cnt = 0;
+
+					if (nat_y == nat_y_prev) {
+						result = nat_y;
+						finished = true;
+					}
+					nat_y_prev = nat_y;
+				}
+			} else {
+				idle_cnt = 0;
 			}
 		}
 	}
@@ -91,13 +120,13 @@ int64_t AoC2019_day23::run_network() {
 }
 
 bool AoC2019_day23::part1() {
-	result1_ = std::to_string(run_network());
+	result1_ = std::to_string(run_network(false));
 
 	return true;
 }
 
 bool AoC2019_day23::part2() {
-	result2_ = std::to_string(0);
+	result2_ = std::to_string(run_network(true));
 
 	return true;
 }

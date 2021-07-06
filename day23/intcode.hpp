@@ -11,10 +11,11 @@ class int_code {
 	int64_t get_address() const;
 	bool simulate_intcode();
 	void reset();
-	int_code(int64_t address, std::vector<int64_t>& ints);
+	int_code(const int64_t address, const std::vector<int64_t>& ints);
 	bool get_outgoing_packet(int64_t& address, int64_t& x, int64_t& y);
-	void set_incoming_packet(int64_t x, int64_t y);
+	void set_incoming_packet(const int64_t x, const int64_t y);
 	int_code(){};
+	bool get_idle() const;
 
   private:
 	typedef enum OPCODES {
@@ -36,28 +37,33 @@ class int_code {
 	std::queue<int64_t> input_;
 	std::queue<int64_t> output_;
 	int64_t relative_base_;
+	bool idle_;
 
 	bool get_int(const uint64_t idx, const int32_t param_mode, int64_t& value);
 	bool set_int(const uint64_t idx, const int32_t param_mode, const int64_t value);
-	void safe_memory(uint64_t idx);
+	void safe_memory(const uint64_t idx);
 };
 
 int64_t int_code::get_address() const {
 	return address_;
 }
+bool int_code::get_idle() const {
+	return idle_;
+}
 
-int_code::int_code(int64_t address, std::vector<int64_t>& ints) {
+int_code::int_code(const int64_t address, const std::vector<int64_t>& ints) {
 	idx_ = 0;
 	relative_base_ = 0;
 	address_ = address;
 	ints_ = ints;
 	input_.push(address);
+	idle_ = false;
 }
 
 void int_code::reset() {
 }
 
-void int_code::safe_memory(uint64_t idx) {
+void int_code::safe_memory(const uint64_t idx) {
 	while (idx >= ints_.size()) {
 		ints_.push_back(0);
 	}
@@ -135,8 +141,10 @@ bool int_code::simulate_intcode() {
 			if (input_.size() > 0) {
 				op1 = input_.front();
 				input_.pop();
+				idle_ = false;
 			} else {
 				op1 = -1;
+				idle_ = true;
 			}
 			set_int(ints_[idx_ + 1], param_mode[0], op1);
 			idx_ += 2;
@@ -145,6 +153,7 @@ bool int_code::simulate_intcode() {
 			get_int(ints_[idx_ + 1], param_mode[0], op1);
 			output_.push(op1);
 			idx_ += 2;
+			idle_ = false;
 			break;
 		case opcodes_t::OP_JNZ:
 			get_int(ints_[idx_ + 1], param_mode[0], op1);
@@ -208,7 +217,7 @@ bool int_code::get_outgoing_packet(int64_t& address, int64_t& x, int64_t& y) {
 	}
 }
 
-void int_code::set_incoming_packet(int64_t x, int64_t y) {
+void int_code::set_incoming_packet(const int64_t x, const int64_t y) {
 	input_.push(x);
 	input_.push(y);
 
