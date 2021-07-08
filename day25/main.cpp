@@ -291,7 +291,7 @@ bool AoC2019_day25::part2() {
 }
 
 int32_t AoC2019_day25::get_aoc_day() {
-	return 23;
+	return 25;
 }
 
 int32_t AoC2019_day25::get_aoc_year() {
